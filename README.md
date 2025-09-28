@@ -21,7 +21,6 @@ A powerful Chrome extension that monitors network requests, console logs, cookie
 3. Click "Load unpacked" button
 4. Select the folder containing the extension files
 5. The extension should now appear in your extensions list
-
 ### Method 2: Chrome Web Store (Coming Soon)
 The extension will be available on the Chrome Web Store soon.
 
@@ -30,47 +29,21 @@ The extension will be available on the Chrome Web Store soon.
 ### Accessing the Extension
 
 1. **Popup Interface**: Click the extension icon in the Chrome toolbar
-2. **DevTools Panel**: Open Chrome DevTools (F12) and look for the "Web Monitor" tab
+2. **Open Window**: From the popup, click "Open Window" to keep a persistent view while interacting with the page
+3. **DevTools Panel**: Open Chrome DevTools (F12) and look for the "Web Monitor" tab
 
 ### Interface Overview
 
 The extension provides four main tabs:
 
-#### Network Tab
-- View all network requests made by the current page
-- Filter by request type (XHR, Fetch, Scripts, Stylesheets, Images)
-- See request methods, URLs, status codes, and response headers
-- Monitor request timing and errors
-
-#### Console Tab
-- Capture all console output (logs, warnings, errors, info)
-- Filter by log level
-- View stack traces for errors
-- Monitor unhandled promise rejections
-
-#### Cookies Tab
-- Track cookie additions, updates, and deletions
-- See cookie details including domain, path, and values
-- Monitor cookie expiration and security settings
-
-#### Storage Tab
-- Monitor localStorage and sessionStorage changes
-- Filter by storage type
-- Track key-value pairs and operations (set, remove, clear)
-
-### Controls
-
-- **Refresh**: Reload all monitoring data
-- **Clear All**: Remove all captured data across all tabs
-- **Individual Clear**: Clear data for specific tabs using the "Clear" buttons
-- **Filters**: Use dropdown filters to focus on specific data types
-
+{{ ... }}
 ## Technical Details
 
 ### Permissions Required
 
 The extension requires the following permissions:
 - `activeTab`: Access to the current active tab
+- `tabs`: Resolve the active tab and scope monitoring
 - `storage`: Chrome storage API access
 - `cookies`: Cookie monitoring capabilities
 - `webRequest`: Network request interception
@@ -82,11 +55,7 @@ The extension requires the following permissions:
 
 - **Background Script** (`background.js`): Service worker that handles network monitoring and data storage
 - **Content Script** (`content.js`): Injected into web pages to monitor console logs and storage changes
-- **Popup Interface** (`popup.html/js/css`): Main user interface for viewing monitored data
-- **DevTools Integration** (`devtools.html/js`): Integration with Chrome DevTools
-
-### Data Storage
-
+{{ ... }}
 - Network requests: Last 1000 requests stored in memory
 - Console logs: Last 500 logs per tab
 - Cookie changes: Last 500 changes stored
@@ -94,77 +63,45 @@ The extension requires the following permissions:
 
 Data is automatically cleaned up to prevent memory issues.
 
+### Backend Submission (Optional)
+
+- Configure placeholders in `src/config.js`:
+  - `BACKEND_ENDPOINT = 'https://example.com/api/logs'`
+  - `BACKEND_BEARER_TOKEN = 'Bearer YOUR_API_KEY_HERE'`
+- In the popup/Open Window, enable "Submit to backend" and choose a retry interval (Off/20s/1m/5m).
+- When Off, a new head event will attempt once (e.g., on page reload) to avoid spam. When On, attempts run periodically.
+- Submission success/failure toasts appear while the UI is open.
+- Payload structure: see `references/backend_payload_reference.md`.
+
+### Test Page (for quick validation)
+
+`test_page/` contains `index.html` and `script.js` that generate console, network (GET/POST/XHR, 404, CORS, network fail), storage, and cookie events.
+
+- Open in Chrome (enable "Allow access to file URLs" for the extension) or serve via a local server.
+- Open the extension popup or use Open Window; set submission toggle and retry, then interact with the page.
+
+
 ## Privacy & Security
 
 - **Local Processing**: All data is processed locally in your browser
 - **No External Servers**: No data is sent to external servers
-- **Memory Management**: Automatic cleanup prevents excessive memory usage
-- **Secure Storage**: Uses Chrome's secure storage APIs
-
-## Development
-
-### File Structure
-
-```
-web-monitor-pro/
-├── manifest.json          # Extension manifest
-├── background.js          # Background service worker
-├── content.js            # Content script for page monitoring
-├── popup.html            # Main popup interface
-├── popup.css             # Styling for popup
-├── popup.js              # Popup functionality
-├── devtools.html         # DevTools integration
-├── devtools.js           # DevTools panel creation
-├── icons/                # Extension icons
-└── README.md             # This file
-```
-
-### Building from Source
-
-1. Clone or download the source code
-2. Make any desired modifications
-3. Load the extension using Chrome's "Load unpacked" feature
-4. Test thoroughly before distribution
-
-## Browser Compatibility
-
-- **Chrome**: Fully supported (Manifest V3)
-- **Edge**: Compatible with Chromium-based Edge
-- **Other Browsers**: Not currently supported
-
-## Troubleshooting
-
-### Extension Not Working
-- Ensure Developer mode is enabled in Chrome extensions
-- Check that all files are present in the extension directory
-- Reload the extension if you made changes
-
+{{ ... }}
 ### No Data Appearing
 - Make sure you're on a webpage (not chrome:// pages)
 - Check that the extension has necessary permissions
 - Try refreshing the page and the extension popup
 
 ### Console Logs Not Showing
-- The content script may not have loaded properly
-- Try refreshing the webpage
-- Check Chrome's extension console for errors
+- Ensure the popup/Open Window was opened on the target tab (tab-scoped)
+- Page-world console hook is injected by `src/content.js`; try refreshing the page
+- Check background service worker and content script consoles for errors
+
 
 ## Contributing
 
 We welcome contributions! Please feel free to:
 - Report bugs and issues
-- Suggest new features
-- Submit pull requests
-- Improve documentation
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Support
-
-If you encounter any issues or have questions:
-1. Check the troubleshooting section above
+{{ ... }}
 2. Look for similar issues in the project repository
 3. Create a new issue with detailed information about your problem
 
@@ -172,10 +109,9 @@ If you encounter any issues or have questions:
 
 ### Version 1.0.0
 - Initial release
-- Network request monitoring
-- Console log capture
-- Cookie tracking
-- Storage monitoring
-- Modern UI with filtering
-- Real-time updates
-# ailem-webmon
+- Network/Console/Cookies/Storage monitoring with tab-scoped view
+- Page-world console capture
+- Open Window mode
+- Session persistence
+- Optional backend submission with retry control and toasts
+
