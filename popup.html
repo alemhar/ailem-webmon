@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Monitor Pro</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1 class="title">Web Monitor Pro</h1>
+            <div class="controls">
+                <button id="openWindow" class="btn btn-primary" title="Open in window">Open Window</button>
+                <button id="clearAll" class="btn btn-danger">Clear All</button>
+                <button id="refresh" class="btn btn-primary">Refresh</button>
+            </div>
+        </header>
+
+        <nav class="tabs">
+            <button class="tab-btn active" data-tab="network">Network</button>
+            <button class="tab-btn" data-tab="console">Console</button>
+            <button class="tab-btn" data-tab="cookies">Cookies</button>
+            <button class="tab-btn" data-tab="storage">Storage</button>
+        </nav>
+
+        <main class="content">
+            <!-- Network Tab -->
+            <div id="network" class="tab-content active">
+                <div class="section-header">
+                    <h2>Network Requests</h2>
+                    <div class="filters">
+                        <select id="networkFilter">
+                            <option value="all">All Requests</option>
+                            <option value="xhr">XHR</option>
+                            <option value="fetch">Fetch</option>
+                            <option value="script">Scripts</option>
+                            <option value="stylesheet">Stylesheets</option>
+                            <option value="image">Images</option>
+                        </select>
+                        <button id="clearNetwork" class="btn btn-sm">Clear</button>
+                    </div>
+                </div>
+                <div id="networkList" class="data-list">
+                    <div class="empty-state">No network requests captured yet</div>
+                </div>
+            </div>
+
+            <!-- Console Tab -->
+            <div id="console" class="tab-content">
+                <div class="section-header">
+                    <h2>Console Logs</h2>
+                    <div class="filters">
+                        <select id="consoleFilter">
+                            <option value="all">All Logs</option>
+                            <option value="log">Logs</option>
+                            <option value="warn">Warnings</option>
+                            <option value="error">Errors</option>
+                            <option value="info">Info</option>
+                        </select>
+                        <button id="clearConsole" class="btn btn-sm">Clear</button>
+                    </div>
+                </div>
+                <div id="consoleList" class="data-list">
+                    <div class="empty-state">No console logs captured yet</div>
+                </div>
+            </div>
+
+            <!-- Cookies Tab -->
+            <div id="cookies" class="tab-content">
+                <div class="section-header">
+                    <h2>Cookie Changes</h2>
+                    <div class="filters">
+                        <button id="clearCookies" class="btn btn-sm">Clear</button>
+                    </div>
+                </div>
+                <div id="cookiesList" class="data-list">
+                    <div class="empty-state">No cookie changes captured yet</div>
+                </div>
+            </div>
+
+            <!-- Storage Tab -->
+            <div id="storage" class="tab-content">
+                <div class="section-header">
+                    <h2>Storage Changes</h2>
+                    <div class="filters">
+                        <select id="storageFilter">
+                            <option value="all">All Storage</option>
+                            <option value="localStorage">Local Storage</option>
+                            <option value="sessionStorage">Session Storage</option>
+                        </select>
+                        <button id="clearStorage" class="btn btn-sm">Clear</button>
+                    </div>
+                </div>
+                <div id="storageList" class="data-list">
+                    <div class="empty-state">No storage changes captured yet</div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="popup.js"></script>
+</body>
+</html>

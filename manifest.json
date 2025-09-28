@@ -1,0 +1,39 @@
+{
+  "manifest_version": 3,
+  "name": "Web Monitor Pro",
+  "version": "1.0.0",
+  "description": "Monitor network requests, console logs, cookies, and storage for web development",
+  "permissions": [
+    "tabs",
+    "activeTab",
+    "storage",
+    "cookies",
+    "webRequest",
+    "webNavigation",
+    "scripting"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Web Monitor Pro"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["page_console_hook.js"],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  "devtools_page": "devtools.html"
+}
