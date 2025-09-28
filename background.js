@@ -1,257 +1,70 @@
-// Background service worker for Web Monitor Pro
-let networkRequests = [];
-let cookieChanges = [];
-let storageChanges = [];
-let consoleLogs = [];
+import { BACKEND_ENDPOINT, BACKEND_BEARER_TOKEN, QUEUE_RETRY_INTERVAL_MS, SAVE_DEBOUNCE_MS } from './config.js';
+import { loadAll as sessionLoadAll, scheduleSaveFactory } from './persistence/sessionStore.js';
+import {
+  enqueueEvent,
+  processSubmissionQueue,
+  startPeriodicRetry,
+  restoreQueueState,
+  getQueueState,
+  setPersistCallback as setQueuePersistCallback,
+  getSubmissionEnabled,
+  setSubmissionEnabled
+} from './queue/submissionQueue.js';
+import { registerNetworkListeners } from './events/network.js';
+import {
+  cleanupTab,
+  restoreFromSnapshot,
+  getStateSnapshot
+} from './state/dataStore.js';
+import { registerCookieListener } from './events/cookies.js';
+import { registerMessageHandlers } from './messaging/handlers.js';
+// Background service worker for Web Monitor Pro (state is managed in dataStore)
 
 // Persistence (session-only) to survive service worker restarts
-let __saveTimer = null;
-function __scheduleSave() {
-  if (__saveTimer) clearTimeout(__saveTimer);
-  __saveTimer = setTimeout(__saveAll, 300);
-}
+const __getStateForSave = () => ({
+  ...getStateSnapshot(),
+  ...getQueueState()
+});
+const __scheduleSave = scheduleSaveFactory(__getStateForSave, SAVE_DEBOUNCE_MS);
 
-function __saveAll() {
-  __saveTimer = null;
-  try {
-    chrome.storage?.session?.set?.({
-      networkRequests,
-      cookieChanges,
-      storageChanges,
-      consoleLogs
-    });
-  } catch (e) {
-    // ignore storage errors
-  }
-}
+// Start periodic retry in queue module
+startPeriodicRetry();
 
 async function __loadAll() {
-  try {
-    const data = await chrome.storage?.session?.get?.([
-      'networkRequests', 'cookieChanges', 'storageChanges', 'consoleLogs'
-    ]);
-    if (Array.isArray(data?.networkRequests)) networkRequests = data.networkRequests;
-    if (Array.isArray(data?.cookieChanges)) cookieChanges = data.cookieChanges;
-    if (Array.isArray(data?.storageChanges)) storageChanges = data.storageChanges;
-    if (Array.isArray(data?.consoleLogs)) consoleLogs = data.consoleLogs;
-  } catch (e) {
-    // ignore load errors
-  }
+  const data = await sessionLoadAll([
+    'networkRequests', 'cookieChanges', 'storageChanges', 'consoleLogs',
+    'submissionQueue', 'eventSeq', 'batchId', 'submissionEnabled'
+  ]);
+  restoreFromSnapshot({
+    networkRequests: Array.isArray(data?.networkRequests) ? data.networkRequests : [],
+    cookieChanges: Array.isArray(data?.cookieChanges) ? data.cookieChanges : [],
+    storageChanges: Array.isArray(data?.storageChanges) ? data.storageChanges : [],
+    consoleLogs: Array.isArray(data?.consoleLogs) ? data.consoleLogs : []
+  });
+  restoreQueueState({
+    submissionQueue: Array.isArray(data?.submissionQueue) ? data.submissionQueue : [],
+    eventSeq: typeof data?.eventSeq === 'number' ? data.eventSeq : 0,
+    batchId: typeof data?.batchId === 'string' ? data.batchId : undefined,
+    submissionEnabled: typeof data?.submissionEnabled === 'boolean' ? data.submissionEnabled : false
+  });
 }
 
 // Load persisted state on service worker startup
 __loadAll();
 
-// Network request monitoring
-chrome.webRequest.onBeforeRequest.addListener(
-  (details) => {
-    const request = {
-      id: details.requestId,
-      url: details.url,
-      method: details.method,
-      timestamp: new Date().toISOString(),
-      type: details.type,
-      tabId: details.tabId,
-      requestBody: details.requestBody,
-      status: 'pending'
-    };
-    
-    networkRequests.push(request);
-    
-    // Keep only last 1000 requests to prevent memory issues
-    if (networkRequests.length > 1000) {
-      networkRequests = networkRequests.slice(-1000);
-    }
-    __scheduleSave();
-    
-    // Notify popup if it's open
-    chrome.runtime.sendMessage({
-      type: 'NETWORK_REQUEST',
-      data: request
-    }).catch(() => {}); // Ignore errors if popup is closed
-  },
-  { urls: ["<all_urls>"] },
-  ["requestBody"]
-);
+// Ensure queue persistence uses the same debounced saver
+setQueuePersistCallback(__scheduleSave);
 
-chrome.webRequest.onCompleted.addListener(
-  (details) => {
-    // Update the request with response details
-    const request = networkRequests.find(req => req.id === details.requestId);
-    if (request) {
-      request.status = 'completed';
-      request.statusCode = details.statusCode;
-      request.responseHeaders = details.responseHeaders;
-      request.completedTimestamp = new Date().toISOString();
-      
-      chrome.runtime.sendMessage({
-        type: 'NETWORK_RESPONSE',
-        data: request
-      }).catch(() => {});
-      __scheduleSave();
-    }
-  },
-  { urls: ["<all_urls>"] },
-  ["responseHeaders"]
-);
+// Register network listeners (moved to events/network.js)
+registerNetworkListeners(__scheduleSave);
 
-chrome.webRequest.onErrorOccurred.addListener(
-  (details) => {
-    const request = networkRequests.find(req => req.id === details.requestId);
-    if (request) {
-      request.status = 'error';
-      request.error = details.error;
-      request.completedTimestamp = new Date().toISOString();
-      
-      chrome.runtime.sendMessage({
-        type: 'NETWORK_ERROR',
-        data: request
-      }).catch(() => {});
-      __scheduleSave();
-    }
-  },
-  { urls: ["<all_urls>"] }
-);
+// Register cookies listener
+registerCookieListener(__scheduleSave);
 
-// Cookie monitoring
-chrome.cookies.onChanged.addListener((changeInfo) => {
-  const change = {
-    timestamp: new Date().toISOString(),
-    removed: changeInfo.removed,
-    cookie: changeInfo.cookie,
-    cause: changeInfo.cause
-  };
-  
-  cookieChanges.push(change);
-  
-  // Keep only last 500 cookie changes
-  if (cookieChanges.length > 500) {
-    cookieChanges = cookieChanges.slice(-500);
-  }
-  __scheduleSave();
-  
-  chrome.runtime.sendMessage({
-    type: 'COOKIE_CHANGE',
-    data: change
-  }).catch(() => {});
-});
 
-// Message handling from content scripts and popup
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  // Handle console logs from content script
-  if (message.type === 'CONSOLE_LOG') {
-    const entry = {
-      timestamp: new Date().toISOString(),
-      tabId: sender.tab?.id,
-      url: sender.tab?.url,
-      ...message.data
-    };
-    consoleLogs.push(entry);
-    
-    // Keep only last 500 console logs
-    if (consoleLogs.length > 500) {
-      consoleLogs = consoleLogs.slice(-500);
-    }
-    
-    // Forward to popup (include tabId so UI can filter by current tab)
-    chrome.runtime.sendMessage({
-      type: 'CONSOLE_LOG',
-      data: entry
-    }).catch(() => {});
-    __scheduleSave();
-  }
-  
-  // Handle storage changes from content script
-  if (message.type === 'STORAGE_CHANGE') {
-    const change = {
-      timestamp: new Date().toISOString(),
-      tabId: sender.tab?.id,
-      url: sender.tab?.url,
-      ...message.data
-    };
-    storageChanges.push(change);
-    
-    // Keep only last 500 storage changes
-    if (storageChanges.length > 500) {
-      storageChanges = storageChanges.slice(-500);
-    }
-    
-    // Forward to popup (include tabId for filtering)
-    chrome.runtime.sendMessage({
-      type: 'STORAGE_CHANGE',
-      data: change
-    }).catch(() => {});
-    __scheduleSave();
-  }
-  
-  // Handle requests for stored data from popup
-  if (message.type === 'GET_NETWORK_DATA') {
-    const tabId = message.tabId;
-    const requests = typeof tabId === 'number' ? networkRequests.filter(r => r.tabId === tabId) : networkRequests;
-    sendResponse({ requests });
-  }
-  
-  if (message.type === 'GET_COOKIE_DATA') {
-    const domainHost = message.domainHost; // e.g., example.com
-    let changes = cookieChanges;
-    if (domainHost) {
-      const host = domainHost.startsWith('.') ? domainHost.slice(1) : domainHost;
-      changes = cookieChanges.filter(c => {
-        const d = c.cookie?.domain || '';
-        const dd = d.startsWith('.') ? d.slice(1) : d;
-        return dd === host || dd.endsWith('.' + host) || host.endsWith('.' + dd);
-      });
-    }
-    sendResponse({ changes });
-  }
-  
-  if (message.type === 'GET_STORAGE_DATA') {
-    const tabId = message.tabId;
-    const changes = typeof tabId === 'number' ? storageChanges.filter(c => c.tabId === tabId) : storageChanges;
-    sendResponse({ changes });
-  }
-  
-  if (message.type === 'GET_CONSOLE_DATA') {
-    const tabId = message.tabId;
-    const logs = typeof tabId === 'number' ? consoleLogs.filter(l => l.tabId === tabId) : consoleLogs;
-    sendResponse({ logs });
-  }
-  
-  // Handle clear data requests
-    if (message.type === 'CLEAR_DATA') {
-      if (message.dataType === 'network' || message.dataType === 'all') {
-        networkRequests = [];
-      }
-      if (message.dataType === 'cookies' || message.dataType === 'all') {
-        cookieChanges = [];
-      }
-      if (message.dataType === 'storage' || message.dataType === 'all') {
-        storageChanges = [];
-      }
-      if (message.dataType === 'console' || message.dataType === 'all') {
-        consoleLogs = [];
-      }
-      __scheduleSave();
-      sendResponse({ success: true });
-    }
-  
-  // Return true to indicate we will send a response asynchronously
-  return true;
-});
 
-// Persist captured data in chrome.storage.session to survive service worker restarts
-async function __save() {
-  try {
-    await chrome.storage.session.set({
-      networkRequests,
-      cookieChanges,
-      storageChanges,
-      consoleLogs
-    });
-  } catch (e) {
-    // ignore storage errors
-  }
-}
+// Message handlers (moved to messaging/handlers.js)
+registerMessageHandlers(__scheduleSave);
 chrome.runtime.onInstalled.addListener(() => {
   console.log('Web Monitor Pro installed');
 });
@@ -259,9 +72,7 @@ chrome.runtime.onInstalled.addListener(() => {
 // Clean up data when tabs are closed
 chrome.tabs.onRemoved.addListener((tabId) => {
   // Remove data associated with closed tab
-  networkRequests = networkRequests.filter(req => req.tabId !== tabId);
-  consoleLogs = consoleLogs.filter(log => log.tabId !== tabId);
-  storageChanges = storageChanges.filter(change => change.tabId !== tabId);
+  cleanupTab(tabId);
   __scheduleSave();
 });
 

@@ -57,6 +57,23 @@ class WebMonitorPopup {
     }
 
     setupEventListeners() {
+        // Submission toggle
+        const toggle = document.getElementById('toggleSubmit');
+        if (toggle) {
+            // Load initial state
+            chrome.runtime.sendMessage({ type: 'GET_SUBMISSION_ENABLED' }).then((resp) => {
+                if (resp && typeof resp.enabled === 'boolean') {
+                    toggle.checked = resp.enabled;
+                }
+            }).catch(() => {});
+
+            toggle.addEventListener('change', async (e) => {
+                try {
+                    const enabled = Boolean(e.target.checked);
+                    await chrome.runtime.sendMessage({ type: 'SET_SUBMISSION_ENABLED', enabled });
+                } catch (_) {}
+            });
+        }
         // Open in persistent window
         const openWindowBtn = document.getElementById('openWindow');
         if (openWindowBtn) {
