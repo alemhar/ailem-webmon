@@ -36,6 +36,21 @@ class WebMonitorPopup {
                 const idNum = Number(qTabId);
                 if (!Number.isNaN(idNum)) this.currentTabId = idNum;
             }
+        // Retry interval selector
+        const retrySel = document.getElementById('retryInterval');
+        if (retrySel) {
+            chrome.runtime.sendMessage({ type: 'GET_RETRY_INTERVAL' }).then((resp) => {
+                if (resp && typeof resp.retryIntervalMs === 'number') {
+                    retrySel.value = String(resp.retryIntervalMs);
+                }
+            }).catch(() => {});
+            retrySel.addEventListener('change', async (e) => {
+                try {
+                    const retryIntervalMs = Number(e.target.value);
+                    await chrome.runtime.sendMessage({ type: 'SET_RETRY_INTERVAL', retryIntervalMs });
+                } catch (_) {}
+            });
+        }
             if (qHost) this.currentDomainHost = qHost;
 
             // Fallback to active tab of current window when params missing
@@ -240,6 +255,9 @@ class WebMonitorPopup {
                         }
                     }
                     break;
+                case 'SUBMISSION_STATUS':
+                    this.showSubmissionToast(message.data);
+                    break;
             }
         });
     }
@@ -250,6 +268,32 @@ class WebMonitorPopup {
         const cookieHost = d.startsWith('.') ? d.slice(1) : d;
         const host = this.currentDomainHost.startsWith('.') ? this.currentDomainHost.slice(1) : this.currentDomainHost;
         return cookieHost === host || cookieHost.endsWith('.' + host) || host.endsWith('.' + cookieHost);
+    }
+
+    showSubmissionToast(status) {
+        try {
+            const container = document.getElementById('toasts');
+            if (!container) return;
+            const el = document.createElement('div');
+            const ok = !!status?.ok;
+            const code = status?.status ?? '';
+            const item = status?.item || {};
+            const msg = ok
+                ? `Submitted ${item.eventType} #${item.seq} (batch ${item.batchId}) ${code ? '– HTTP '+code : ''}`
+                : `Submit failed for ${item.eventType} #${item.seq} (batch ${item.batchId}) ${code ? '– HTTP '+code : ''}${status?.error ? ' – '+status.error : ''}`;
+            el.textContent = msg;
+            el.style.cssText = `
+                background: ${ok ? '#0f766e' : '#b91c1c'};
+                color: #fff; padding: 8px 12px; margin: 6px 0; border-radius: 6px;
+                box-shadow: 0 4px 14px rgba(0,0,0,0.2); font-size: 12px;
+            `;
+            container.style.cssText = `
+                position: fixed; right: 10px; bottom: 10px; max-width: 360px; z-index: 9999;
+                display: flex; flex-direction: column; align-items: flex-end;
+            `;
+            container.appendChild(el);
+            setTimeout(() => { el.remove(); }, 3500);
+        } catch (_) {}
     }
     
     renderNetworkData() {

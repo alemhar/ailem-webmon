@@ -1,6 +1,6 @@
 // Messaging handlers: routes runtime messages for data fetch/clear and submission toggle
 import { networkRequests, cookieChanges, storageChanges, consoleLogs, clearData as storeClearData } from '../state/dataStore.js';
-import { getSubmissionEnabled, setSubmissionEnabled } from '../queue/submissionQueue.js';
+import { getSubmissionEnabled, setSubmissionEnabled, getRetryIntervalMs, setRetryIntervalMs } from '../queue/submissionQueue.js';
 import { handleConsoleMessage } from '../events/console.js';
 import { handleStorageMessage } from '../events/storage.js';
 
@@ -57,6 +57,16 @@ export function registerMessageHandlers(scheduleSave) {
       setSubmissionEnabled(Boolean(message.enabled));
       try { scheduleSave(); } catch {}
       sendResponse({ success: true, enabled: getSubmissionEnabled() });
+    }
+
+    // Retry interval (ms). 0 means Off
+    if (message.type === 'GET_RETRY_INTERVAL') {
+      sendResponse({ retryIntervalMs: getRetryIntervalMs() });
+    }
+    if (message.type === 'SET_RETRY_INTERVAL') {
+      setRetryIntervalMs(Number(message.retryIntervalMs));
+      try { scheduleSave(); } catch {}
+      sendResponse({ success: true, retryIntervalMs: getRetryIntervalMs() });
     }
 
     // Clear data

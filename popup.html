@@ -8,12 +8,22 @@
 </head>
 <body>
     <div class="container">
+        <div id="toasts" class="toasts" aria-live="polite" aria-atomic="true"></div>
         <header class="header">
             <h1 class="title">Web Monitor Pro</h1>
             <div class="controls">
                 <label style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.15);padding:4px 8px;border-radius:4px;">
                     <input type="checkbox" id="toggleSubmit" />
                     <span>Submit to backend</span>
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.15);padding:4px 8px;border-radius:4px;">
+                    <span>Retry</span>
+                    <select id="retryInterval" title="Periodic retry interval">
+                        <option value="0">Off</option>
+                        <option value="20000">20s</option>
+                        <option value="60000">1m</option>
+                        <option value="300000">5m</option>
+                    </select>
                 </label>
                 <button id="openWindow" class="btn btn-primary" title="Open in window">Open Window</button>
                 <button id="clearAll" class="btn btn-danger">Clear All</button>
